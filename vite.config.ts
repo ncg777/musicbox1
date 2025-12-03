@@ -11,7 +11,7 @@ export default defineConfig({
     vue(),
     VitePWA({
       registerType: 'autoUpdate',
-      includeAssets: ['favicon.svg', 'apple-touch-icon.svg'],
+      includeAssets: ['favicon.svg', 'apple-touch-icon.svg','pwa-192x192.svg','pwa-512x512.svg'],
       manifest: {
         name: 'NCG777 Music Box',
         short_name: 'MusicBox',
@@ -22,13 +22,13 @@ export default defineConfig({
         categories: ['music', 'entertainment'],
         icons: [
           {
-            src: '/musicbox1/pwa-192x192.svg',
+            src: 'pwa-192x192.svg',
             sizes: '192x192',
             type: 'image/svg+xml',
             purpose: 'any'
           },
           {
-            src: '/musicbox1/pwa-512x512.svg',
+            src: 'pwa-512x512.svg',
             sizes: '512x512',
             type: 'image/svg+xml',
             purpose: 'any maskable'
