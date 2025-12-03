@@ -13,8 +13,8 @@ export default defineConfig({
       registerType: 'autoUpdate',
       includeAssets: ['favicon.svg', 'apple-touch-icon.svg','pwa-192x192.svg','pwa-512x512.svg'],
       manifest: {
-        name: 'NCG777 Music Box',
-        short_name: 'MusicBox',
+        name: 'ncg777 musicbox1',
+        short_name: 'musicbox1',
         description: 'Generative ambient music using pitch class sets',
         theme_color: '#1a1a2e',
         background_color: '#1a1a2e',
