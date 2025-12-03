@@ -141,13 +141,14 @@ export class MusicEngine {
 
   private setupMediaSession(): void {
     if ('mediaSession' in navigator) {
+      const assetPath = (file: string) => `${import.meta.env.BASE_URL}${file}`;
       navigator.mediaSession.metadata = new MediaMetadata({
         title: 'NCG777 Music Box',
         artist: 'Generative Ambient',
         album: 'Pitch Class Sets',
         artwork: [
-          { src: '/pwa-192x192.svg', sizes: '192x192', type: 'image/svg+xml' },
-          { src: '/pwa-512x512.svg', sizes: '512x512', type: 'image/svg+xml' }
+          { src: assetPath('pwa-192x192.svg'), sizes: '192x192', type: 'image/svg+xml' },
+          { src: assetPath('pwa-512x512.svg'), sizes: '512x512', type: 'image/svg+xml' }
         ]
       });
 
