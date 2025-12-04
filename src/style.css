@@ -408,3 +408,145 @@ input[type="range"]::-moz-range-thumb {
     font-size: 0.85rem;
   }
 }
+
+/* Preset Bar */
+.preset-bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  align-items: center;
+  justify-content: center;
+  padding: 0.75rem 1rem;
+  margin-bottom: 1rem;
+  background: rgba(255, 255, 255, 0.03);
+  border-radius: 0.5rem;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.preset-select-group {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.preset-select-group label {
+  font-size: 0.85rem;
+  color: rgba(255, 255, 255, 0.7);
+}
+
+.preset-select-group select {
+  padding: 0.4rem 0.6rem;
+  border-radius: 0.375rem;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  background: rgba(255, 255, 255, 0.05);
+  color: white;
+  font-size: 0.85rem;
+  min-width: 150px;
+  cursor: pointer;
+}
+
+.preset-select-group select:focus {
+  outline: none;
+  border-color: #667eea;
+}
+
+.preset-select-group select optgroup {
+  background: #2a2a4a;
+  color: rgba(255, 255, 255, 0.6);
+}
+
+.preset-select-group select option {
+  background: #1a1a2e;
+  color: white;
+  padding: 0.25rem;
+}
+
+.preset-save-group {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.preset-name-input {
+  padding: 0.4rem 0.6rem;
+  border-radius: 0.375rem;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  background: rgba(255, 255, 255, 0.05);
+  color: white;
+  font-size: 0.85rem;
+  width: 140px;
+}
+
+.preset-name-input::placeholder {
+  color: rgba(255, 255, 255, 0.4);
+}
+
+.preset-name-input:focus {
+  outline: none;
+  border-color: #667eea;
+}
+
+.preset-btn {
+  padding: 0.4rem 0.75rem;
+  border-radius: 0.375rem;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  background: rgba(255, 255, 255, 0.05);
+  color: rgba(255, 255, 255, 0.8);
+  font-size: 0.8rem;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.preset-btn:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.1);
+  border-color: rgba(255, 255, 255, 0.25);
+}
+
+.preset-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.preset-btn.save {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  border-color: transparent;
+  color: white;
+}
+
+.preset-btn.save:hover:not(:disabled) {
+  filter: brightness(1.1);
+}
+
+.preset-btn.delete {
+  border-color: rgba(255, 100, 100, 0.3);
+  color: rgba(255, 150, 150, 0.9);
+}
+
+.preset-btn.delete:hover:not(:disabled) {
+  background: rgba(255, 100, 100, 0.15);
+  border-color: rgba(255, 100, 100, 0.4);
+}
+
+.preset-io-group {
+  display: flex;
+  gap: 0.4rem;
+}
+
+@media (max-width: 600px) {
+  .preset-bar {
+    flex-direction: column;
+    gap: 0.5rem;
+  }
+  
+  .preset-select-group,
+  .preset-save-group,
+  .preset-io-group {
+    width: 100%;
+    justify-content: center;
+  }
+  
+  .preset-name-input {
+    flex: 1;
+    min-width: 0;
+  }
+}
