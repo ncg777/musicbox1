@@ -27,10 +27,43 @@ export interface TremoloParams {
   depth: number;
 }
 
+// Musical duration values for delay timing
+export type MusicalDuration = 
+  | '1/1' | '1/1T' | '1/1D'
+  | '1/2' | '1/2T' | '1/2D'
+  | '1/4' | '1/4T' | '1/4D'
+  | '1/8' | '1/8T' | '1/8D'
+  | '1/16' | '1/16T' | '1/16D'
+  | '1/32' | '1/32T' | '1/32D';
+
+export const MUSICAL_DURATIONS: MusicalDuration[] = [
+  '1/1', '1/1D', '1/1T',
+  '1/2', '1/2D', '1/2T',
+  '1/4', '1/4D', '1/4T',
+  '1/8', '1/8D', '1/8T',
+  '1/16', '1/16D', '1/16T',
+  '1/32', '1/32D', '1/32T'
+];
+
+export type DelayFilterType = 'lowpass' | 'bandpass' | 'highpass';
+export type DelayFilterOrder = 6 | 12 | 24;
+
+export interface DelayParams {
+  enabled: boolean;
+  duration: MusicalDuration;
+  feedback: number;  // 0 to 0.95
+  mix: number;       // 0 to 1 (dry/wet)
+  filterType: DelayFilterType;
+  filterFrequency: number;  // Hz
+  filterResonance: number;  // Q value, 0.1 to 20
+  filterOrder: DelayFilterOrder;
+}
+
 export interface SynthParams {
   envelope: EnvelopeParams;
   vibrato: VibratoParams;
   tremolo: TremoloParams;
+  delay: DelayParams;
   maxNoteDuration: number;
 }
 
@@ -49,8 +82,49 @@ export const DEFAULT_SYNTH_PARAMS: SynthParams = {
     rate: 2.1,
     depth: 0.25
   },
+  delay: {
+    enabled: false,
+    duration: '1/4',
+    feedback: 0.4,
+    mix: 0.3,
+    filterType: 'lowpass',
+    filterFrequency: 2000,
+    filterResonance: 1.0,
+    filterOrder: 12
+  },
   maxNoteDuration: 2.4
 };
+
+// Convert musical duration to seconds based on BPM
+export function musicalDurationToSeconds(duration: MusicalDuration, bpm: number): number {
+  const beatSeconds = 60 / bpm;  // Quarter note duration
+  const wholeNote = beatSeconds * 4;
+  
+  const baseValues: Record<string, number> = {
+    '1/1': wholeNote,
+    '1/2': wholeNote / 2,
+    '1/4': wholeNote / 4,
+    '1/8': wholeNote / 8,
+    '1/16': wholeNote / 16,
+    '1/32': wholeNote / 32
+  };
+  
+  // Extract base and modifier
+  const base = duration.replace(/[TD]$/, '');
+  const modifier = duration.slice(-1);
+  
+  let value = baseValues[base] || wholeNote / 4;
+  
+  if (modifier === 'T') {
+    // Triplet: 2/3 of the base value
+    value = value * (2 / 3);
+  } else if (modifier === 'D') {
+    // Dotted: 1.5 times the base value
+    value = value * 1.5;
+  }
+  
+  return value;
+}
 
 function midiToFreq(midi: number): number {
   return 440 * Math.pow(2, (midi - 69) / 12);
@@ -103,6 +177,12 @@ export class MusicEngine {
   private audioContext: AudioContext | null = null;
   private masterGain: GainNode | null = null;
   private reverbNode: ConvolverNode | null = null;
+  private delayNode: DelayNode | null = null;
+  private delayFeedbackGain: GainNode | null = null;
+  private delayFilters: BiquadFilterNode[] = [];
+  private delayDryGain: GainNode | null = null;
+  private delayWetGain: GainNode | null = null;
+  private delayInputGain: GainNode | null = null;
   private isPlaying: boolean = false;
   private pcsGraph: PcsRelationGraph;
   private activePitchClasses: number[] = [];
@@ -110,7 +190,7 @@ export class MusicEngine {
   private nextNoteTime: number = 0;
   private nextGraphHopTime: number = 0;
   private schedulerId: number | null = null;
-  private synthParams: SynthParams = { ...DEFAULT_SYNTH_PARAMS };
+  private synthParams: SynthParams = JSON.parse(JSON.stringify(DEFAULT_SYNTH_PARAMS));
   
   // Timing parameters
   private bpm: number = DEFAULT_BPM;
@@ -194,8 +274,98 @@ export class MusicEngine {
     if (params.tremolo) {
       this.synthParams.tremolo = { ...this.synthParams.tremolo, ...params.tremolo };
     }
+    if (params.delay) {
+      this.synthParams.delay = { ...this.synthParams.delay, ...params.delay };
+      this.updateDelayParams();
+    }
     if (params.maxNoteDuration !== undefined) {
       this.synthParams.maxNoteDuration = params.maxNoteDuration;
+    }
+  }
+
+  private updateDelayParams(): void {
+    if (!this.audioContext) return;
+    
+    const { enabled, duration, feedback, mix, filterType, filterFrequency, filterResonance, filterOrder } = this.synthParams.delay;
+    
+    // Update delay time
+    if (this.delayNode) {
+      const delaySeconds = musicalDurationToSeconds(duration, this.bpm);
+      this.delayNode.delayTime.setTargetAtTime(delaySeconds, this.audioContext.currentTime, 0.05);
+    }
+    
+    // Update feedback gain
+    if (this.delayFeedbackGain) {
+      this.delayFeedbackGain.gain.setTargetAtTime(
+        enabled ? Math.min(feedback, 0.95) : 0,
+        this.audioContext.currentTime,
+        0.05
+      );
+    }
+    
+    // Update dry/wet mix
+    if (this.delayDryGain && this.delayWetGain) {
+      this.delayDryGain.gain.setTargetAtTime(1 - (enabled ? mix : 0), this.audioContext.currentTime, 0.05);
+      this.delayWetGain.gain.setTargetAtTime(enabled ? mix : 0, this.audioContext.currentTime, 0.05);
+    }
+    
+    // Update filters
+    this.updateDelayFilters(filterType, filterFrequency, filterResonance, filterOrder);
+  }
+
+  private updateDelayFilters(type: DelayFilterType, frequency: number, resonance: number, order: DelayFilterOrder): void {
+    if (!this.audioContext) return;
+    
+    const numFilters = order / 6;  // 6dB per filter stage
+    
+    // If we need to recreate filters (different count)
+    if (this.delayFilters.length !== numFilters) {
+      this.recreateDelayFilterChain(type, frequency, resonance, numFilters);
+      return;
+    }
+    
+    // Just update existing filter params
+    for (const filter of this.delayFilters) {
+      filter.type = type;
+      filter.frequency.setTargetAtTime(frequency, this.audioContext.currentTime, 0.05);
+      filter.Q.setTargetAtTime(resonance, this.audioContext.currentTime, 0.05);
+    }
+  }
+
+  private recreateDelayFilterChain(type: DelayFilterType, frequency: number, resonance: number, numFilters: number): void {
+    if (!this.audioContext || !this.delayNode || !this.delayFeedbackGain || !this.delayWetGain) return;
+    
+    // Disconnect old filters
+    for (const filter of this.delayFilters) {
+      try { filter.disconnect(); } catch (e) {}
+    }
+    
+    // Create new filters
+    this.delayFilters = [];
+    for (let i = 0; i < numFilters; i++) {
+      const filter = this.audioContext.createBiquadFilter();
+      filter.type = type;
+      filter.frequency.value = frequency;
+      filter.Q.value = resonance;
+      this.delayFilters.push(filter);
+    }
+    
+    // Reconnect: delayNode -> filters -> feedbackGain & wetGain
+    try {
+      this.delayNode.disconnect();
+    } catch (e) {}
+    
+    if (this.delayFilters.length > 0) {
+      this.delayNode.connect(this.delayFilters[0]);
+      for (let i = 0; i < this.delayFilters.length - 1; i++) {
+        this.delayFilters[i].connect(this.delayFilters[i + 1]);
+      }
+      const lastFilter = this.delayFilters[this.delayFilters.length - 1];
+      lastFilter.connect(this.delayFeedbackGain);
+      lastFilter.connect(this.delayWetGain);
+    } else {
+      this.delayNode.connect(this.delayFeedbackGain);
+      this.delayNode.connect(this.delayWetGain);
     }
   }
 
@@ -217,6 +387,76 @@ export class MusicEngine {
     if (this.onChordChange) {
       this.onChordChange(this.pcsGraph.current().toString());
     }
+  }
+
+  private createDelayMixNode(): GainNode | null {
+    if (!this.audioContext || !this.delayDryGain || !this.delayWetGain) return null;
+    
+    const mixNode = this.audioContext.createGain();
+    mixNode.gain.value = 1.0;
+    this.delayDryGain.connect(mixNode);
+    this.delayWetGain.connect(mixNode);
+    return mixNode;
+  }
+
+  private createDelayEffect(): void {
+    if (!this.audioContext || !this.masterGain) return;
+    
+    const { enabled, duration, feedback, mix, filterType, filterFrequency, filterResonance, filterOrder } = this.synthParams.delay;
+    const delaySeconds = musicalDurationToSeconds(duration, this.bpm);
+    
+    // Create delay node (max 5 seconds for whole notes at slow tempos)
+    this.delayNode = this.audioContext.createDelay(5.0);
+    this.delayNode.delayTime.value = delaySeconds;
+    
+    // Create feedback gain
+    this.delayFeedbackGain = this.audioContext.createGain();
+    this.delayFeedbackGain.gain.value = enabled ? Math.min(feedback, 0.95) : 0;
+    
+    // Create dry/wet gains
+    this.delayDryGain = this.audioContext.createGain();
+    this.delayWetGain = this.audioContext.createGain();
+    this.delayDryGain.gain.value = 1 - (enabled ? mix : 0);
+    this.delayWetGain.gain.value = enabled ? mix : 0;
+    
+    // Create input gain for delay line
+    this.delayInputGain = this.audioContext.createGain();
+    this.delayInputGain.gain.value = 1.0;
+    
+    // Create filter chain
+    const numFilters = filterOrder / 6;
+    this.delayFilters = [];
+    for (let i = 0; i < numFilters; i++) {
+      const filter = this.audioContext.createBiquadFilter();
+      filter.type = filterType;
+      filter.frequency.value = filterFrequency;
+      filter.Q.value = filterResonance;
+      this.delayFilters.push(filter);
+    }
+    
+    // Connect the delay chain:
+    // masterGain -> delayDryGain (dry path)
+    // masterGain -> delayInputGain -> delayNode -> filters -> delayWetGain (wet path)
+    //                                           -> filters -> delayFeedbackGain -> delayInputGain (feedback loop)
+    
+    this.masterGain.connect(this.delayDryGain);
+    this.masterGain.connect(this.delayInputGain);
+    this.delayInputGain.connect(this.delayNode);
+    
+    if (this.delayFilters.length > 0) {
+      this.delayNode.connect(this.delayFilters[0]);
+      for (let i = 0; i < this.delayFilters.length - 1; i++) {
+        this.delayFilters[i].connect(this.delayFilters[i + 1]);
+      }
+      const lastFilter = this.delayFilters[this.delayFilters.length - 1];
+      lastFilter.connect(this.delayFeedbackGain);
+      lastFilter.connect(this.delayWetGain);
+    } else {
+      this.delayNode.connect(this.delayFeedbackGain);
+      this.delayNode.connect(this.delayWetGain);
+    }
+    
+    this.delayFeedbackGain.connect(this.delayInputGain);
   }
 
   private createSimpleReverb(): ConvolverNode | null {
@@ -461,25 +701,32 @@ export class MusicEngine {
       this.masterGain = this.audioContext.createGain();
       this.masterGain.gain.value = 0.5;
       
+      // Create delay effect
+      this.createDelayEffect();
+      
       // Create reverb
       this.reverbNode = this.createSimpleReverb();
       
-      if (this.reverbNode) {
+      // Get the output of the delay effect (or master if no delay)
+      const delayOutput = this.delayDryGain && this.delayWetGain ? null : this.masterGain;
+      const signalSource = delayOutput || this.createDelayMixNode();
+      
+      if (this.reverbNode && signalSource) {
         // Dry/wet mix: 70% dry, 30% wet
         const dryGain = this.audioContext.createGain();
         const wetGain = this.audioContext.createGain();
         dryGain.gain.value = 0.7;
         wetGain.gain.value = 0.3;
         
-        this.masterGain.connect(dryGain);
-        this.masterGain.connect(this.reverbNode);
+        signalSource.connect(dryGain);
+        signalSource.connect(this.reverbNode);
         this.reverbNode.connect(wetGain);
         
         dryGain.connect(this.audioContext.destination);
         wetGain.connect(this.audioContext.destination);
-      } else {
+      } else if (signalSource) {
         // No reverb, connect directly
-        this.masterGain.connect(this.audioContext.destination);
+        signalSource.connect(this.audioContext.destination);
       }
       
       console.log('Audio chain ready');
@@ -539,6 +786,32 @@ export class MusicEngine {
       } catch (e) {}
       this.masterGain = null;
     }
+    
+    // Disconnect delay nodes
+    if (this.delayNode) {
+      try { this.delayNode.disconnect(); } catch (e) {}
+      this.delayNode = null;
+    }
+    if (this.delayFeedbackGain) {
+      try { this.delayFeedbackGain.disconnect(); } catch (e) {}
+      this.delayFeedbackGain = null;
+    }
+    if (this.delayDryGain) {
+      try { this.delayDryGain.disconnect(); } catch (e) {}
+      this.delayDryGain = null;
+    }
+    if (this.delayWetGain) {
+      try { this.delayWetGain.disconnect(); } catch (e) {}
+      this.delayWetGain = null;
+    }
+    if (this.delayInputGain) {
+      try { this.delayInputGain.disconnect(); } catch (e) {}
+      this.delayInputGain = null;
+    }
+    for (const filter of this.delayFilters) {
+      try { filter.disconnect(); } catch (e) {}
+    }
+    this.delayFilters = [];
     
     if (this.reverbNode) {
       try {

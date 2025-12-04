@@ -1,6 +1,6 @@
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted } from 'vue';
-import { MusicEngine, DEFAULT_SYNTH_PARAMS } from './musicEngine';
+import { ref, computed, onMounted, onUnmounted } from 'vue';
+import { MusicEngine, DEFAULT_SYNTH_PARAMS, MUSICAL_DURATIONS, type MusicalDuration, type DelayFilterType, type DelayFilterOrder } from './musicEngine';
 
 const STORAGE_KEY = 'musicbox-params';
 
@@ -16,6 +16,15 @@ interface SavedParams {
   tremoloRate: number;
   tremoloDepth: number;
   maxNoteDuration: number;
+  // Delay params
+  delayEnabled: boolean;
+  delayDurationIndex: number;
+  delayFeedback: number;
+  delayMix: number;
+  delayFilterType: DelayFilterType;
+  delayFilterFrequency: number;
+  delayFilterResonance: number;
+  delayFilterOrder: DelayFilterOrder;
 }
 
 function loadSavedParams(): SavedParams | null {
@@ -42,7 +51,16 @@ function saveParams() {
     vibratoDepth: vibratoDepth.value,
     tremoloRate: tremoloRate.value,
     tremoloDepth: tremoloDepth.value,
-    maxNoteDuration: maxNoteDuration.value
+    maxNoteDuration: maxNoteDuration.value,
+    // Delay params
+    delayEnabled: delayEnabled.value,
+    delayDurationIndex: delayDurationIndex.value,
+    delayFeedback: delayFeedback.value,
+    delayMix: delayMix.value,
+    delayFilterType: delayFilterType.value,
+    delayFilterFrequency: delayFilterFrequency.value,
+    delayFilterResonance: delayFilterResonance.value,
+    delayFilterOrder: delayFilterOrder.value
   };
   try {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(params));
@@ -79,6 +97,29 @@ const tremoloDepth = ref(savedParams?.tremoloDepth ?? DEFAULT_SYNTH_PARAMS.tremo
 // Max note duration
 const maxNoteDuration = ref(savedParams?.maxNoteDuration ?? DEFAULT_SYNTH_PARAMS.maxNoteDuration);
 
+// Delay parameters
+const delayEnabled = ref(savedParams?.delayEnabled ?? DEFAULT_SYNTH_PARAMS.delay.enabled);
+const delayDurationIndex = ref(savedParams?.delayDurationIndex ?? MUSICAL_DURATIONS.indexOf(DEFAULT_SYNTH_PARAMS.delay.duration));
+const delayFeedback = ref(savedParams?.delayFeedback ?? DEFAULT_SYNTH_PARAMS.delay.feedback);
+const delayMix = ref(savedParams?.delayMix ?? DEFAULT_SYNTH_PARAMS.delay.mix);
+const delayFilterType = ref<DelayFilterType>(savedParams?.delayFilterType ?? DEFAULT_SYNTH_PARAMS.delay.filterType);
+const delayFilterFrequency = ref(savedParams?.delayFilterFrequency ?? DEFAULT_SYNTH_PARAMS.delay.filterFrequency);
+const delayFilterResonance = ref(savedParams?.delayFilterResonance ?? DEFAULT_SYNTH_PARAMS.delay.filterResonance);
+const delayFilterOrder = ref<DelayFilterOrder>(savedParams?.delayFilterOrder ?? DEFAULT_SYNTH_PARAMS.delay.filterOrder);
+
+// Computed for displaying current musical duration
+const currentDelayDuration = computed(() => MUSICAL_DURATIONS[delayDurationIndex.value] || '1/4');
+
+// Filter type options for select
+const filterTypeOptions: { value: DelayFilterType; label: string }[] = [
+  { value: 'lowpass', label: 'LP' },
+  { value: 'bandpass', label: 'BP' },
+  { value: 'highpass', label: 'HP' }
+];
+
+// Filter order options
+const filterOrderOptions: DelayFilterOrder[] = [6, 12, 24];
+
 async function handlePlayClick() {
   if (!engine.value) return;
   
@@ -113,6 +154,16 @@ function updateEngineParams() {
     tremolo: {
       rate: tremoloRate.value,
       depth: tremoloDepth.value
+    },
+    delay: {
+      enabled: delayEnabled.value,
+      duration: MUSICAL_DURATIONS[delayDurationIndex.value] as MusicalDuration,
+      feedback: delayFeedback.value,
+      mix: delayMix.value,
+      filterType: delayFilterType.value,
+      filterFrequency: delayFilterFrequency.value,
+      filterResonance: delayFilterResonance.value,
+      filterOrder: delayFilterOrder.value
     },
     maxNoteDuration: maxNoteDuration.value
   });
@@ -298,6 +349,85 @@ const noteNames = ['C', 'C♯', 'D', 'D♯', 'E', 'F', 'F♯', 'G', 'G♯', 'A',
           <div class="slider-row">
             <input type="range" id="maxNoteDuration" min="0.5" max="10" step="0.1" v-model.number="maxNoteDuration" @input="updateEngineParams" />
             <span class="value-display">{{ maxNoteDuration.toFixed(1) }}s</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="param-section">
+        <h3>
+          Delay
+          <label class="toggle-label">
+            <input type="checkbox" v-model="delayEnabled" @change="updateEngineParams" />
+            <span class="toggle-text">{{ delayEnabled ? 'On' : 'Off' }}</span>
+          </label>
+        </h3>
+        <div class="slider-container">
+          <label for="delayDuration">Time</label>
+          <div class="slider-row">
+            <input 
+              type="range" 
+              id="delayDuration"
+              min="0" 
+              :max="MUSICAL_DURATIONS.length - 1" 
+              step="1"
+              v-model.number="delayDurationIndex"
+              @input="updateEngineParams"
+            />
+            <span class="value-display">{{ currentDelayDuration }}</span>
+          </div>
+        </div>
+        <div class="slider-container">
+          <label for="delayFeedback">Feedback</label>
+          <div class="slider-row">
+            <input type="range" id="delayFeedback" min="0" max="0.95" step="0.01" v-model.number="delayFeedback" @input="updateEngineParams" />
+            <span class="value-display">{{ (delayFeedback * 100).toFixed(0) }}%</span>
+          </div>
+        </div>
+        <div class="slider-container">
+          <label for="delayMix">Mix</label>
+          <div class="slider-row">
+            <input type="range" id="delayMix" min="0" max="1" step="0.01" v-model.number="delayMix" @input="updateEngineParams" />
+            <span class="value-display">{{ (delayMix * 100).toFixed(0) }}%</span>
+          </div>
+        </div>
+        <div class="slider-container">
+          <label>Filter Type</label>
+          <div class="button-group">
+            <button 
+              v-for="opt in filterTypeOptions" 
+              :key="opt.value"
+              :class="{ active: delayFilterType === opt.value }"
+              @click="delayFilterType = opt.value; updateEngineParams()"
+            >
+              {{ opt.label }}
+            </button>
+          </div>
+        </div>
+        <div class="slider-container">
+          <label for="delayFilterFreq">Filter Freq</label>
+          <div class="slider-row">
+            <input type="range" id="delayFilterFreq" min="100" max="10000" step="10" v-model.number="delayFilterFrequency" @input="updateEngineParams" />
+            <span class="value-display">{{ delayFilterFrequency >= 1000 ? (delayFilterFrequency / 1000).toFixed(1) + 'k' : delayFilterFrequency }} Hz</span>
+          </div>
+        </div>
+        <div class="slider-container">
+          <label for="delayFilterRes">Resonance</label>
+          <div class="slider-row">
+            <input type="range" id="delayFilterRes" min="0.1" max="20" step="0.1" v-model.number="delayFilterResonance" @input="updateEngineParams" />
+            <span class="value-display">{{ delayFilterResonance.toFixed(1) }}</span>
+          </div>
+        </div>
+        <div class="slider-container">
+          <label>Filter Order</label>
+          <div class="button-group">
+            <button 
+              v-for="order in filterOrderOptions" 
+              :key="order"
+              :class="{ active: delayFilterOrder === order }"
+              @click="delayFilterOrder = order; updateEngineParams()"
+            >
+              {{ order }}dB
+            </button>
           </div>
         </div>
       </div>
