@@ -214,12 +214,18 @@ function pcsRelationAllows(a, b) {
   return close && pcsShareCommonNotes(a, b, 1);
 }
 
+// Check if a PCS is consonant (interval vector positions 0 and 5 are 0)
+function isConsonant(pcs) {
+  const iv = pcs.getIntervalVector();
+  return iv[0] === 0 && iv[5] === 0;
+}
+
 // Main
 const allChords = generateAllPcs12();
-const tetrads = allChords.filter(pcs => pcs.getK() === 4);
+const tetrads = allChords.filter(pcs => pcs.getK() === 4 && isConsonant(pcs));
 
 console.error('Total PCS:', allChords.length);
-console.error('Tetrads (4 notes):', tetrads.length);
+console.error('Consonant Tetrads (4 notes):', tetrads.length);
 
 const nodes = tetrads.map(pcs => pcs.toString());
 
