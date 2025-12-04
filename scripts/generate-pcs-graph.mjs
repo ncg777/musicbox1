@@ -217,7 +217,7 @@ function pcsRelationAllows(a, b) {
 // Check if a PCS is consonant (interval vector positions 0 and 5 are 0)
 function isConsonant(pcs) {
   const iv = pcs.getIntervalVector();
-  return iv[0] === 0 && iv[5] === 0;
+  return iv[0] === 0;
 }
 
 // Main
