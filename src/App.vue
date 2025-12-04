@@ -110,6 +110,19 @@ const delayFilterOrder = ref<DelayFilterOrder>(savedParams?.delayFilterOrder ?? 
 // Computed for displaying current musical duration
 const currentDelayDuration = computed(() => MUSICAL_DURATIONS[delayDurationIndex.value] || '1/4');
 
+// Computed for which notes are in the current chord (from binary string)
+const chordNotes = computed(() => {
+  const notes = new Set<number>();
+  if (currentChord.value) {
+    for (let i = 0; i < currentChord.value.length; i++) {
+      if (currentChord.value[i] === '1') {
+        notes.add(i);
+      }
+    }
+  }
+  return notes;
+});
+
 // Filter type options for select
 const filterTypeOptions: { value: DelayFilterType; label: string }[] = [
   { value: 'lowpass', label: 'LP' },
@@ -214,35 +227,36 @@ const noteNames = ['C', 'C♯', 'D', 'D♯', 'E', 'F', 'F♯', 'G', 'G♯', 'A',
 
 <template>
   <div class="app">
-    <h1>🎵 Music Box</h1>
-    <p class="subtitle">Generative ambient music using pitch class sets</p>
-      
-    <div class="controls">
-      <div class="player-section">
-        <button 
-          class="play-button" 
-          :class="{ playing: isPlaying, loading: isLoading }"
-          @click="handlePlayClick"
-          :disabled="isLoading"
-          :aria-label="isLoading ? 'Loading' : isPlaying ? 'Pause' : 'Play'"
-        >
-          {{ isLoading ? '⏳' : isPlaying ? '⏸' : '▶' }}
-        </button>
-        <div class="note-indicator">
-          <div 
-            v-for="i in 12" 
-            :key="i"
-            class="note-dot"
-            :class="{ active: activeNotes.has(i - 1) }"
-            :title="noteNames[i - 1]"
-          ></div>
-        </div>
-        
-        <div class="status" v-if="isPlaying">
-          <p>Current chord: <span class="current-chord">{{ currentChord || '...' }}</span></p>
-        </div>
+    <header class="app-header">
+      <button 
+        class="play-button" 
+        :class="{ playing: isPlaying, loading: isLoading }"
+        @click="handlePlayClick"
+        :disabled="isLoading"
+        :aria-label="isLoading ? 'Loading' : isPlaying ? 'Pause' : 'Play'"
+      >
+        {{ isLoading ? '⏳' : isPlaying ? '⏸' : '▶' }}
+      </button>
+      <h1>🎵 Music Box</h1>
+    </header>
+    
+    <div class="note-indicator">
+      <div 
+        v-for="i in 12" 
+        :key="i"
+        class="note-dot"
+        :class="{ active: activeNotes.has(i - 1), 'in-chord': chordNotes.has(i - 1) }"
+        :title="noteNames[i - 1]"
+      >
+        <span class="note-label">{{ noteNames[i - 1] }}</span>
       </div>
-
+    </div>
+    <!--
+    <div class="status" v-if="isPlaying">
+      <p>Current chord: <span class="current-chord">{{ currentChord || '...' }}</span></p>
+    </div>
+    -->
+    <div class="controls">
       <div class="params-grid">
         <div class="param-section">
           <h3>Timing</h3>
