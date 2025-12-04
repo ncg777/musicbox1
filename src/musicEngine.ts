@@ -66,7 +66,7 @@ export interface SynthParams {
   vibrato: VibratoParams;
   tremolo: TremoloParams;
   delay: DelayParams;
-  maxNoteDuration: number;
+  maxNoteDuration: MusicalDuration;
 }
 
 export const DEFAULT_SYNTH_PARAMS: SynthParams = {
@@ -94,7 +94,7 @@ export const DEFAULT_SYNTH_PARAMS: SynthParams = {
     filterResonance: 1.0,
     filterOrder: 12
   },
-  maxNoteDuration: 2.4
+  maxNoteDuration: '1/4'
 };
 
 // Convert musical duration to seconds based on BPM
@@ -638,7 +638,8 @@ export class MusicEngine {
     const octave = OCTAVE_MIN + Math.floor(Math.random() * (OCTAVE_MAX - OCTAVE_MIN + 1));
     const midi = octave * 12 + pitchClass;
     const frequency = midiToFreq(midi);
-    const duration = this.synthParams.maxNoteDuration * (0.5 + Math.random() * 0.5);
+    const maxDurationSeconds = musicalDurationToSeconds(this.synthParams.maxNoteDuration, this.bpm);
+    const duration = maxDurationSeconds * (0.5 + Math.random() * 0.5);
 
     console.log('Triggering note:', { pitchClass, octave, frequency: frequency.toFixed(1), whenTime: whenTime.toFixed(2) });
     

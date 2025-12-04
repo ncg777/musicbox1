@@ -15,7 +15,7 @@ interface SavedParams {
   vibratoDepth: number;
   tremoloRate: number;
   tremoloDepth: number;
-  maxNoteDuration: number;
+  maxNoteDurationIndex: number;
   // Delay params
   delayEnabled: boolean;
   delayDurationIndex: number;
@@ -51,7 +51,7 @@ function saveParams() {
     vibratoDepth: vibratoDepth.value,
     tremoloRate: tremoloRate.value,
     tremoloDepth: tremoloDepth.value,
-    maxNoteDuration: maxNoteDuration.value,
+    maxNoteDurationIndex: maxNoteDurationIndex.value,
     // Delay params
     delayEnabled: delayEnabled.value,
     delayDurationIndex: delayDurationIndex.value,
@@ -94,8 +94,8 @@ const vibratoDepth = ref(savedParams?.vibratoDepth ?? DEFAULT_SYNTH_PARAMS.vibra
 const tremoloRate = ref(savedParams?.tremoloRate ?? DEFAULT_SYNTH_PARAMS.tremolo.rate);
 const tremoloDepth = ref(savedParams?.tremoloDepth ?? DEFAULT_SYNTH_PARAMS.tremolo.depth);
 
-// Max note duration
-const maxNoteDuration = ref(savedParams?.maxNoteDuration ?? DEFAULT_SYNTH_PARAMS.maxNoteDuration);
+// Max note duration (as index into MUSICAL_DURATIONS)
+const maxNoteDurationIndex = ref(savedParams?.maxNoteDurationIndex ?? MUSICAL_DURATIONS.indexOf(DEFAULT_SYNTH_PARAMS.maxNoteDuration));
 
 // Delay parameters
 const delayEnabled = ref(savedParams?.delayEnabled ?? DEFAULT_SYNTH_PARAMS.delay.enabled);
@@ -109,6 +109,7 @@ const delayFilterOrder = ref<DelayFilterOrder>(savedParams?.delayFilterOrder ?? 
 
 // Computed for displaying current musical duration
 const currentDelayDuration = computed(() => MUSICAL_DURATIONS[delayDurationIndex.value] || '1/4');
+const currentMaxNoteDuration = computed(() => MUSICAL_DURATIONS[maxNoteDurationIndex.value] || '1/2');
 
 // Computed for which notes are in the current chord (from binary string)
 const chordNotes = computed(() => {
@@ -178,7 +179,7 @@ function updateEngineParams() {
       filterResonance: delayFilterResonance.value,
       filterOrder: delayFilterOrder.value
     },
-    maxNoteDuration: maxNoteDuration.value
+    maxNoteDuration: MUSICAL_DURATIONS[maxNoteDurationIndex.value] as MusicalDuration
   });
   
   // Persist to localStorage
@@ -293,8 +294,16 @@ const noteNames = ['C', 'C♯', 'D', 'D♯', 'E', 'F', 'F♯', 'G', 'G♯', 'A',
           <div class="slider-container">
             <label for="maxNoteDuration">Max Note Length</label>
             <div class="slider-row">
-              <input type="range" id="maxNoteDuration" min="0.5" max="10" step="0.1" v-model.number="maxNoteDuration" @input="updateEngineParams" />
-              <span class="value-display">{{ maxNoteDuration.toFixed(1) }}s</span>
+              <input 
+                type="range" 
+                id="maxNoteDuration" 
+                min="0" 
+                :max="MUSICAL_DURATIONS.length - 1" 
+                step="1" 
+                v-model.number="maxNoteDurationIndex" 
+                @input="updateEngineParams" 
+              />
+              <span class="value-display">{{ currentMaxNoteDuration }}</span>
             </div>
           </div>
         </div>
