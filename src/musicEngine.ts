@@ -5,8 +5,8 @@ import pcsGraphData from './pcsGraphData.json';
 const DEFAULT_BPM = 45;
 const DEFAULT_MEAN_NOTES_PER_BAR = 6;
 const MAX_VOICES = 12;
-const OCTAVE_MIN = 5;
-const OCTAVE_MAX = 8;
+const OCTAVE_MIN = 2;
+const OCTAVE_MAX = 7;
 const BARS_PER_CHANGE = 4;
 
 // User-configurable parameters with defaults
