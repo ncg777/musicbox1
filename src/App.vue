@@ -341,34 +341,30 @@ const noteNames = ['C', 'C♯', 'D', 'D♯', 'E', 'F', 'F♯', 'G', 'G♯', 'A',
         </div>
 
         <div class="param-section">
-          <h3>Vibrato</h3>
+          <h3>Modulation</h3>
           <div class="slider-container">
-            <label for="vibratoRate">Rate</label>
+            <label for="vibratoRate">Vibrato Rate</label>
             <div class="slider-row">
               <input type="range" id="vibratoRate" min="0.1" max="20" step="0.1" v-model.number="vibratoRate" @input="updateEngineParams" />
               <span class="value-display">{{ vibratoRate.toFixed(1) }} Hz</span>
             </div>
           </div>
           <div class="slider-container">
-            <label for="vibratoDepth">Depth</label>
+            <label for="vibratoDepth">Vibrato Depth</label>
             <div class="slider-row">
               <input type="range" id="vibratoDepth" min="0" max="0.05" step="0.001" v-model.number="vibratoDepth" @input="updateEngineParams" />
               <span class="value-display">{{ (vibratoDepth * 100).toFixed(1) }}%</span>
             </div>
           </div>
-        </div>
-
-        <div class="param-section">
-          <h3>Tremolo</h3>
           <div class="slider-container">
-            <label for="tremoloRate">Rate</label>
+            <label for="tremoloRate">Tremolo Rate</label>
             <div class="slider-row">
               <input type="range" id="tremoloRate" min="0.1" max="20" step="0.1" v-model.number="tremoloRate" @input="updateEngineParams" />
               <span class="value-display">{{ tremoloRate.toFixed(1) }} Hz</span>
             </div>
           </div>
           <div class="slider-container">
-            <label for="tremoloDepth">Depth</label>
+            <label for="tremoloDepth">Tremolo Depth</label>
             <div class="slider-row">
               <input type="range" id="tremoloDepth" min="0" max="1" step="0.01" v-model.number="tremoloDepth" @input="updateEngineParams" />
               <span class="value-display">{{ (tremoloDepth * 100).toFixed(0) }}%</span>
