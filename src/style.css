@@ -29,10 +29,16 @@ body {
 
 #app {
   width: 100%;
-  max-width: 600px;
-  padding: 2rem;
+  max-width: 1400px;
+  padding: 1.5rem;
   text-align: center;
   margin: 0 auto;
+}
+
+@media (min-width: 768px) {
+  #app {
+    padding: 2rem;
+  }
 }
 
 h1 {
@@ -53,11 +59,49 @@ h1 {
 .controls {
   display: flex;
   flex-direction: column;
-  gap: 2rem;
-  padding: 2rem;
+  gap: 1.5rem;
+  padding: 1.5rem;
   background: rgba(255, 255, 255, 0.05);
   border-radius: 1rem;
   border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+@media (min-width: 768px) {
+  .controls {
+    padding: 2rem;
+    gap: 2rem;
+  }
+}
+
+.player-section {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1rem;
+}
+
+.params-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 1rem;
+}
+
+@media (min-width: 640px) {
+  .params-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+@media (min-width: 1024px) {
+  .params-grid {
+    grid-template-columns: repeat(3, 1fr);
+  }
+}
+
+@media (min-width: 1280px) {
+  .params-grid {
+    grid-template-columns: repeat(4, 1fr);
+  }
 }
 
 .play-button {
@@ -200,6 +244,23 @@ input[type="range"]::-moz-range-thumb {
   border-radius: 0.75rem;
   padding: 1rem;
   border: 1px solid rgba(255, 255, 255, 0.08);
+  text-align: left;
+}
+
+.param-section.wide {
+  grid-column: 1 / -1;
+}
+
+@media (min-width: 640px) {
+  .param-section.wide {
+    grid-column: span 2;
+  }
+}
+
+@media (min-width: 1024px) {
+  .param-section.wide {
+    grid-column: span 2;
+  }
 }
 
 .param-section h3 {
@@ -270,9 +331,17 @@ input[type="range"]::-moz-range-thumb {
 }
 
 .value-display {
-  min-width: 80px;
+  min-width: 70px;
   text-align: right;
   font-family: monospace;
   color: rgba(255, 255, 255, 0.9);
-  font-size: 0.85rem;
+  font-size: 0.8rem;
+  flex-shrink: 0;
+}
+
+@media (min-width: 768px) {
+  .value-display {
+    min-width: 80px;
+    font-size: 0.85rem;
+  }
 }

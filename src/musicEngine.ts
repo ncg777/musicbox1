@@ -71,8 +71,8 @@ export const DEFAULT_SYNTH_PARAMS: SynthParams = {
   envelope: {
     attack: 0.01,
     decay: 0.1,
-    sustain: 0.8,
-    release: 1.8
+    sustain: 0.0,
+    release: 0.0
   },
   vibrato: {
     rate: 4.8,
@@ -83,12 +83,12 @@ export const DEFAULT_SYNTH_PARAMS: SynthParams = {
     depth: 0.25
   },
   delay: {
-    enabled: false,
-    duration: '1/4',
-    feedback: 0.4,
-    mix: 0.3,
+    enabled: true,
+    duration: '1/2',
+    feedback: 0.25,
+    mix: 0.4,
     filterType: 'lowpass',
-    filterFrequency: 2000,
+    filterFrequency: 1000,
     filterResonance: 1.0,
     filterOrder: 12
   },
@@ -101,6 +101,7 @@ export function musicalDurationToSeconds(duration: MusicalDuration, bpm: number)
   const wholeNote = beatSeconds * 4;
   
   const baseValues: Record<string, number> = {
+    '2/1': wholeNote*2,
     '1/1': wholeNote,
     '1/2': wholeNote / 2,
     '1/4': wholeNote / 4,

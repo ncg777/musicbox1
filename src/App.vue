@@ -218,216 +218,217 @@ const noteNames = ['C', 'C♯', 'D', 'D♯', 'E', 'F', 'F♯', 'G', 'G♯', 'A',
     <p class="subtitle">Generative ambient music using pitch class sets</p>
       
     <div class="controls">
-      <button 
-        class="play-button" 
-        :class="{ playing: isPlaying, loading: isLoading }"
-        @click="handlePlayClick"
-        :disabled="isLoading"
-        :aria-label="isLoading ? 'Loading' : isPlaying ? 'Pause' : 'Play'"
-      >
-        {{ isLoading ? '⏳' : isPlaying ? '⏸' : '▶' }}
-      </button>
-      <div class="note-indicator">
-        <div 
-          v-for="i in 12" 
-          :key="i"
-          class="note-dot"
-          :class="{ active: activeNotes.has(i - 1) }"
-          :title="noteNames[i - 1]"
-        ></div>
-      </div>
-      
-      <div class="status" v-if="isPlaying">
-        <p>Current chord: <span class="current-chord">{{ currentChord || '...' }}</span></p>
-      </div>
-      <div class="param-section">
-        <h3>Timing</h3>
-        <div class="slider-container">
-          <label for="bpm">BPM</label>
-          <div class="slider-row">
-            <input 
-              type="range" 
-              id="bpm"
-              min="20" 
-              max="200" 
-              step="1"
-              v-model.number="bpm"
-              @input="updateEngineParams"
-            />
-            <span class="value-display">{{ bpm }} BPM</span>
-          </div>
+      <div class="player-section">
+        <button 
+          class="play-button" 
+          :class="{ playing: isPlaying, loading: isLoading }"
+          @click="handlePlayClick"
+          :disabled="isLoading"
+          :aria-label="isLoading ? 'Loading' : isPlaying ? 'Pause' : 'Play'"
+        >
+          {{ isLoading ? '⏳' : isPlaying ? '⏸' : '▶' }}
+        </button>
+        <div class="note-indicator">
+          <div 
+            v-for="i in 12" 
+            :key="i"
+            class="note-dot"
+            :class="{ active: activeNotes.has(i - 1) }"
+            :title="noteNames[i - 1]"
+          ></div>
         </div>
-        <div class="slider-container">
-          <label for="lambda">Note Density (λ)</label>
-          <div class="slider-row">
-            <input 
-              type="range" 
-              id="lambda"
-              min="1" 
-              max="20" 
-              step="0.5"
-              v-model.number="lambda"
-              @input="updateEngineParams"
-            />
-            <span class="value-display">{{ lambda.toFixed(1) }} notes/bar</span>
-          </div>
+        
+        <div class="status" v-if="isPlaying">
+          <p>Current chord: <span class="current-chord">{{ currentChord || '...' }}</span></p>
         </div>
       </div>
 
-      <div class="param-section">
-        <h3>Envelope</h3>
-        <div class="slider-container">
-          <label for="attack">Attack</label>
-          <div class="slider-row">
-            <input type="range" id="attack" min="0.001" max="1" step="0.001" v-model.number="attack" @input="updateEngineParams" />
-            <span class="value-display">{{ attack.toFixed(3) }}s</span>
+      <div class="params-grid">
+        <div class="param-section">
+          <h3>Timing</h3>
+          <div class="slider-container">
+            <label for="bpm">BPM</label>
+            <div class="slider-row">
+              <input 
+                type="range" 
+                id="bpm"
+                min="20" 
+                max="200" 
+                step="1"
+                v-model.number="bpm"
+                @input="updateEngineParams"
+              />
+              <span class="value-display">{{ bpm }} BPM</span>
+            </div>
+          </div>
+          <div class="slider-container">
+            <label for="lambda">Note Density (λ)</label>
+            <div class="slider-row">
+              <input 
+                type="range" 
+                id="lambda"
+                min="1" 
+                max="20" 
+                step="0.5"
+                v-model.number="lambda"
+                @input="updateEngineParams"
+              />
+              <span class="value-display">{{ lambda.toFixed(1) }} n/bar</span>
+            </div>
+          </div>
+          <div class="slider-container">
+            <label for="maxNoteDuration">Max Note Length</label>
+            <div class="slider-row">
+              <input type="range" id="maxNoteDuration" min="0.5" max="10" step="0.1" v-model.number="maxNoteDuration" @input="updateEngineParams" />
+              <span class="value-display">{{ maxNoteDuration.toFixed(1) }}s</span>
+            </div>
           </div>
         </div>
-        <div class="slider-container">
-          <label for="decay">Decay</label>
-          <div class="slider-row">
-            <input type="range" id="decay" min="0.01" max="2" step="0.01" v-model.number="decay" @input="updateEngineParams" />
-            <span class="value-display">{{ decay.toFixed(2) }}s</span>
-          </div>
-        </div>
-        <div class="slider-container">
-          <label for="sustain">Sustain</label>
-          <div class="slider-row">
-            <input type="range" id="sustain" min="0" max="1" step="0.01" v-model.number="sustain" @input="updateEngineParams" />
-            <span class="value-display">{{ (sustain * 100).toFixed(0) }}%</span>
-          </div>
-        </div>
-        <div class="slider-container">
-          <label for="release">Release</label>
-          <div class="slider-row">
-            <input type="range" id="release" min="0.1" max="5" step="0.1" v-model.number="release" @input="updateEngineParams" />
-            <span class="value-display">{{ release.toFixed(1) }}s</span>
-          </div>
-        </div>
-      </div>
 
-      <div class="param-section">
-        <h3>Vibrato</h3>
-        <div class="slider-container">
-          <label for="vibratoRate">Rate</label>
-          <div class="slider-row">
-            <input type="range" id="vibratoRate" min="0.1" max="20" step="0.1" v-model.number="vibratoRate" @input="updateEngineParams" />
-            <span class="value-display">{{ vibratoRate.toFixed(1) }} Hz</span>
+        <div class="param-section">
+          <h3>Envelope</h3>
+          <div class="slider-container">
+            <label for="attack">Attack</label>
+            <div class="slider-row">
+              <input type="range" id="attack" min="0.001" max="1" step="0.001" v-model.number="attack" @input="updateEngineParams" />
+              <span class="value-display">{{ attack.toFixed(3) }}s</span>
+            </div>
+          </div>
+          <div class="slider-container">
+            <label for="decay">Decay</label>
+            <div class="slider-row">
+              <input type="range" id="decay" min="0.01" max="2" step="0.01" v-model.number="decay" @input="updateEngineParams" />
+              <span class="value-display">{{ decay.toFixed(2) }}s</span>
+            </div>
+          </div>
+          <div class="slider-container">
+            <label for="sustain">Sustain</label>
+            <div class="slider-row">
+              <input type="range" id="sustain" min="0" max="1" step="0.01" v-model.number="sustain" @input="updateEngineParams" />
+              <span class="value-display">{{ (sustain * 100).toFixed(0) }}%</span>
+            </div>
+          </div>
+          <div class="slider-container">
+            <label for="release">Release</label>
+            <div class="slider-row">
+              <input type="range" id="release" min="0.1" max="5" step="0.1" v-model.number="release" @input="updateEngineParams" />
+              <span class="value-display">{{ release.toFixed(1) }}s</span>
+            </div>
           </div>
         </div>
-        <div class="slider-container">
-          <label for="vibratoDepth">Depth</label>
-          <div class="slider-row">
-            <input type="range" id="vibratoDepth" min="0" max="0.05" step="0.001" v-model.number="vibratoDepth" @input="updateEngineParams" />
-            <span class="value-display">{{ (vibratoDepth * 100).toFixed(1) }}%</span>
-          </div>
-        </div>
-      </div>
 
-      <div class="param-section">
-        <h3>Tremolo</h3>
-        <div class="slider-container">
-          <label for="tremoloRate">Rate</label>
-          <div class="slider-row">
-            <input type="range" id="tremoloRate" min="0.1" max="20" step="0.1" v-model.number="tremoloRate" @input="updateEngineParams" />
-            <span class="value-display">{{ tremoloRate.toFixed(1) }} Hz</span>
+        <div class="param-section">
+          <h3>Vibrato</h3>
+          <div class="slider-container">
+            <label for="vibratoRate">Rate</label>
+            <div class="slider-row">
+              <input type="range" id="vibratoRate" min="0.1" max="20" step="0.1" v-model.number="vibratoRate" @input="updateEngineParams" />
+              <span class="value-display">{{ vibratoRate.toFixed(1) }} Hz</span>
+            </div>
+          </div>
+          <div class="slider-container">
+            <label for="vibratoDepth">Depth</label>
+            <div class="slider-row">
+              <input type="range" id="vibratoDepth" min="0" max="0.05" step="0.001" v-model.number="vibratoDepth" @input="updateEngineParams" />
+              <span class="value-display">{{ (vibratoDepth * 100).toFixed(1) }}%</span>
+            </div>
           </div>
         </div>
-        <div class="slider-container">
-          <label for="tremoloDepth">Depth</label>
-          <div class="slider-row">
-            <input type="range" id="tremoloDepth" min="0" max="1" step="0.01" v-model.number="tremoloDepth" @input="updateEngineParams" />
-            <span class="value-display">{{ (tremoloDepth * 100).toFixed(0) }}%</span>
-          </div>
-        </div>
-      </div>
 
-      <div class="param-section">
-        <h3>Duration</h3>
-        <div class="slider-container">
-          <label for="maxNoteDuration">Max Note Length</label>
-          <div class="slider-row">
-            <input type="range" id="maxNoteDuration" min="0.5" max="10" step="0.1" v-model.number="maxNoteDuration" @input="updateEngineParams" />
-            <span class="value-display">{{ maxNoteDuration.toFixed(1) }}s</span>
+        <div class="param-section">
+          <h3>Tremolo</h3>
+          <div class="slider-container">
+            <label for="tremoloRate">Rate</label>
+            <div class="slider-row">
+              <input type="range" id="tremoloRate" min="0.1" max="20" step="0.1" v-model.number="tremoloRate" @input="updateEngineParams" />
+              <span class="value-display">{{ tremoloRate.toFixed(1) }} Hz</span>
+            </div>
+          </div>
+          <div class="slider-container">
+            <label for="tremoloDepth">Depth</label>
+            <div class="slider-row">
+              <input type="range" id="tremoloDepth" min="0" max="1" step="0.01" v-model.number="tremoloDepth" @input="updateEngineParams" />
+              <span class="value-display">{{ (tremoloDepth * 100).toFixed(0) }}%</span>
+            </div>
           </div>
         </div>
-      </div>
 
-      <div class="param-section">
-        <h3>
-          Delay
-          <label class="toggle-label">
-            <input type="checkbox" v-model="delayEnabled" @change="updateEngineParams" />
-            <span class="toggle-text">{{ delayEnabled ? 'On' : 'Off' }}</span>
-          </label>
-        </h3>
-        <div class="slider-container">
-          <label for="delayDuration">Time</label>
-          <div class="slider-row">
-            <input 
-              type="range" 
-              id="delayDuration"
-              min="0" 
-              :max="MUSICAL_DURATIONS.length - 1" 
-              step="1"
-              v-model.number="delayDurationIndex"
-              @input="updateEngineParams"
-            />
-            <span class="value-display">{{ currentDelayDuration }}</span>
+        <div class="param-section wide">
+          <h3>
+            Delay
+            <label class="toggle-label">
+              <input type="checkbox" v-model="delayEnabled" @change="updateEngineParams" />
+              <span class="toggle-text">{{ delayEnabled ? 'On' : 'Off' }}</span>
+            </label>
+          </h3>
+          <div class="slider-container">
+            <label for="delayDuration">Time</label>
+            <div class="slider-row">
+              <input 
+                type="range" 
+                id="delayDuration"
+                min="0" 
+                :max="MUSICAL_DURATIONS.length - 1" 
+                step="1"
+                v-model.number="delayDurationIndex"
+                @input="updateEngineParams"
+              />
+              <span class="value-display">{{ currentDelayDuration }}</span>
+            </div>
           </div>
-        </div>
-        <div class="slider-container">
-          <label for="delayFeedback">Feedback</label>
-          <div class="slider-row">
-            <input type="range" id="delayFeedback" min="0" max="0.95" step="0.01" v-model.number="delayFeedback" @input="updateEngineParams" />
-            <span class="value-display">{{ (delayFeedback * 100).toFixed(0) }}%</span>
+          <div class="slider-container">
+            <label for="delayFeedback">Feedback</label>
+            <div class="slider-row">
+              <input type="range" id="delayFeedback" min="0" max="0.95" step="0.01" v-model.number="delayFeedback" @input="updateEngineParams" />
+              <span class="value-display">{{ (delayFeedback * 100).toFixed(0) }}%</span>
+            </div>
           </div>
-        </div>
-        <div class="slider-container">
-          <label for="delayMix">Mix</label>
-          <div class="slider-row">
-            <input type="range" id="delayMix" min="0" max="1" step="0.01" v-model.number="delayMix" @input="updateEngineParams" />
-            <span class="value-display">{{ (delayMix * 100).toFixed(0) }}%</span>
+          <div class="slider-container">
+            <label for="delayMix">Mix</label>
+            <div class="slider-row">
+              <input type="range" id="delayMix" min="0" max="1" step="0.01" v-model.number="delayMix" @input="updateEngineParams" />
+              <span class="value-display">{{ (delayMix * 100).toFixed(0) }}%</span>
+            </div>
           </div>
-        </div>
-        <div class="slider-container">
-          <label>Filter Type</label>
-          <div class="button-group">
-            <button 
-              v-for="opt in filterTypeOptions" 
-              :key="opt.value"
-              :class="{ active: delayFilterType === opt.value }"
-              @click="delayFilterType = opt.value; updateEngineParams()"
-            >
-              {{ opt.label }}
-            </button>
+          <div class="slider-container">
+            <label>Filter Type</label>
+            <div class="button-group">
+              <button 
+                v-for="opt in filterTypeOptions" 
+                :key="opt.value"
+                :class="{ active: delayFilterType === opt.value }"
+                @click="delayFilterType = opt.value; updateEngineParams()"
+              >
+                {{ opt.label }}
+              </button>
+            </div>
           </div>
-        </div>
-        <div class="slider-container">
-          <label for="delayFilterFreq">Filter Freq</label>
-          <div class="slider-row">
-            <input type="range" id="delayFilterFreq" min="100" max="10000" step="10" v-model.number="delayFilterFrequency" @input="updateEngineParams" />
-            <span class="value-display">{{ delayFilterFrequency >= 1000 ? (delayFilterFrequency / 1000).toFixed(1) + 'k' : delayFilterFrequency }} Hz</span>
+          <div class="slider-container">
+            <label for="delayFilterFreq">Filter Freq</label>
+            <div class="slider-row">
+              <input type="range" id="delayFilterFreq" min="100" max="10000" step="10" v-model.number="delayFilterFrequency" @input="updateEngineParams" />
+              <span class="value-display">{{ delayFilterFrequency >= 1000 ? (delayFilterFrequency / 1000).toFixed(1) + 'k' : delayFilterFrequency }} Hz</span>
+            </div>
           </div>
-        </div>
-        <div class="slider-container">
-          <label for="delayFilterRes">Resonance</label>
-          <div class="slider-row">
-            <input type="range" id="delayFilterRes" min="0.1" max="20" step="0.1" v-model.number="delayFilterResonance" @input="updateEngineParams" />
-            <span class="value-display">{{ delayFilterResonance.toFixed(1) }}</span>
+          <div class="slider-container">
+            <label for="delayFilterRes">Resonance</label>
+            <div class="slider-row">
+              <input type="range" id="delayFilterRes" min="0.1" max="20" step="0.1" v-model.number="delayFilterResonance" @input="updateEngineParams" />
+              <span class="value-display">{{ delayFilterResonance.toFixed(1) }}</span>
+            </div>
           </div>
-        </div>
-        <div class="slider-container">
-          <label>Filter Order</label>
-          <div class="button-group">
-            <button 
-              v-for="order in filterOrderOptions" 
-              :key="order"
-              :class="{ active: delayFilterOrder === order }"
-              @click="delayFilterOrder = order; updateEngineParams()"
-            >
-              {{ order }}dB
-            </button>
+          <div class="slider-container">
+            <label>Filter Order</label>
+            <div class="button-group">
+              <button 
+                v-for="order in filterOrderOptions" 
+                :key="order"
+                :class="{ active: delayFilterOrder === order }"
+                @click="delayFilterOrder = order; updateEngineParams()"
+              >
+                {{ order }}dB
+              </button>
+            </div>
           </div>
         </div>
       </div>
