@@ -29,6 +29,7 @@ export interface TremoloParams {
 
 // Musical duration values for delay timing
 export type MusicalDuration = 
+  | '2/1' | '2/1T' | '2/1D'  
   | '1/1' | '1/1T' | '1/1D'
   | '1/2' | '1/2T' | '1/2D'
   | '1/4' | '1/4T' | '1/4D'
@@ -37,6 +38,7 @@ export type MusicalDuration =
   | '1/32' | '1/32T' | '1/32D';
 
 export const MUSICAL_DURATIONS: MusicalDuration[] = [
+  '2/1', '2/1D', '2/1T',
   '1/1', '1/1D', '1/1T',
   '1/2', '1/2D', '1/2T',
   '1/4', '1/4D', '1/4T',
