@@ -1,6 +1,11 @@
 import { Pcs12 } from './pcs12';
 import pcsGraphData from './pcsGraphData.json';
 
+// MIDI file constants
+const MIDI_HEADER = [0x4D, 0x54, 0x68, 0x64]; // "MThd"
+const MIDI_TRACK_HEADER = [0x4D, 0x54, 0x72, 0x6B]; // "MTrk"
+const TICKS_PER_BEAT = 480;
+
 // Default constants
 const DEFAULT_BPM = 45;
 const DEFAULT_MEAN_NOTES_PER_BAR = 6;
@@ -846,5 +851,499 @@ export class MusicEngine {
 
   getIsPlaying(): boolean {
     return this.isPlaying;
+  }
+
+  /**
+   * Generate music data for n hyperbars (1 hyperbar = 8 bars)
+   * Returns scheduled note events for offline rendering
+   */
+  private generateMusicData(numHyperbars: number): Array<{ midiNote: number; startTime: number; duration: number }> {
+    const notes: Array<{ midiNote: number; startTime: number; duration: number }> = [];
+    const totalBars = numHyperbars * 8;
+    const totalDuration = totalBars * this.barSeconds;
+    
+    // Create a local PCS graph for generation
+    const localPcsGraph = new PcsRelationGraph();
+    let currentPitchClasses = localPcsGraph.current().asSequence();
+    
+    let nextGraphHopTime = this.barSeconds * BARS_PER_CHANGE;
+    
+    // Local lambda for exponential delay
+    const lambda = this.meanNotesPerBar / this.barSeconds;
+    const generateExponentialDelay = () => -Math.log(1 - Math.random()) / lambda;
+    const quantizeToSixteenth = (time: number) => Math.ceil(time / this.sixteenthSeconds) * this.sixteenthSeconds;
+    
+    // Schedule next note time
+    let nextNoteTime = quantizeToSixteenth(generateExponentialDelay());
+    
+    while (nextNoteTime < totalDuration) {
+      // Check for chord changes
+      while (nextNoteTime >= nextGraphHopTime && nextGraphHopTime < totalDuration) {
+        localPcsGraph.advance();
+        currentPitchClasses = localPcsGraph.current().asSequence();
+        nextGraphHopTime += this.barSeconds * BARS_PER_CHANGE;
+      }
+      
+      // Generate a note
+      if (currentPitchClasses.length > 0) {
+        const pitchClass = currentPitchClasses[Math.floor(Math.random() * currentPitchClasses.length)];
+        const octave = OCTAVE_MIN + Math.floor(Math.random() * (OCTAVE_MAX - OCTAVE_MIN + 1));
+        const midiNote = octave * 12 + pitchClass;
+        const maxDurationSeconds = musicalDurationToSeconds(this.synthParams.maxNoteDuration, this.bpm);
+        const duration = maxDurationSeconds * (0.5 + Math.random() * 0.5);
+        
+        notes.push({
+          midiNote,
+          startTime: nextNoteTime,
+          duration
+        });
+      }
+      
+      // Schedule next note
+      const deltaSeconds = Math.max(0.01, generateExponentialDelay());
+      const target = nextNoteTime + deltaSeconds;
+      nextNoteTime = quantizeToSixteenth(target);
+    }
+    
+    return notes;
+  }
+
+  /**
+   * Export to WAV file
+   * @param numHyperbars Number of hyperbars (8 bars each) to generate
+   * @param onProgress Optional progress callback
+   */
+  async exportToWav(numHyperbars: number, onProgress?: (progress: number) => void): Promise<Blob> {
+    const notes = this.generateMusicData(numHyperbars);
+    const totalBars = numHyperbars * 8;
+    const totalDuration = totalBars * this.barSeconds;
+    
+    // Calculate the tail needed after the last scheduled note ends
+    const { attack, decay: decayTime, sustain, release } = this.synthParams.envelope;
+    const { enabled: delayEnabled, feedback, duration: delayDuration } = this.synthParams.delay;
+    
+    // Find when the last note actually ends (including release)
+    let lastNoteEndTime = totalDuration;
+    for (const note of notes) {
+      const noteEnd = note.startTime + note.duration + release;
+      if (noteEnd > lastNoteEndTime) {
+        lastNoteEndTime = noteEnd;
+      }
+    }
+    
+    // Calculate delay tail: time for delay feedback to decay to -60dB
+    // Decay time = -60dB / (20 * log10(feedback)) * delayTime
+    const delaySeconds = musicalDurationToSeconds(delayDuration, this.bpm);
+    let delayTail = 0;
+    if (delayEnabled && feedback > 0.01) {
+      // Number of repeats to decay to -60dB
+      const repeatsTo60dB = Math.ceil(-60 / (20 * Math.log10(feedback)));
+      delayTail = repeatsTo60dB * delaySeconds;
+    }
+    
+    // Reverb tail (3 seconds for our reverb)
+    const reverbTail = 3;
+    
+    // Total render duration: last note end + max(delay tail, reverb tail) + safety margin
+    const tailDuration = Math.max(delayTail, reverbTail) + 1;
+    const totalRenderDuration = lastNoteEndTime + tailDuration;
+    
+    const sampleRate = 44100;
+    const offlineContext = new OfflineAudioContext(2, Math.ceil(totalRenderDuration * sampleRate), sampleRate);
+    
+    // Create master gain
+    const masterGain = offlineContext.createGain();
+    masterGain.gain.value = 0.5;
+    
+    // Create delay effect for offline context
+    const { mix, filterType, filterFrequency, filterResonance, filterOrder } = this.synthParams.delay;
+    
+    const delayNode = offlineContext.createDelay(5.0);
+    delayNode.delayTime.value = delaySeconds;
+    
+    const delayFeedbackGain = offlineContext.createGain();
+    delayFeedbackGain.gain.value = delayEnabled ? Math.min(feedback, 0.95) : 0;
+    
+    const delayDryGain = offlineContext.createGain();
+    const delayWetGain = offlineContext.createGain();
+    delayDryGain.gain.value = 1 - (delayEnabled ? mix : 0);
+    delayWetGain.gain.value = delayEnabled ? mix : 0;
+    
+    const delayInputGain = offlineContext.createGain();
+    delayInputGain.gain.value = 1.0;
+    
+    // Create filter chain
+    const numFilters = filterOrder / 6;
+    const delayFilters: BiquadFilterNode[] = [];
+    for (let i = 0; i < numFilters; i++) {
+      const filter = offlineContext.createBiquadFilter();
+      filter.type = filterType;
+      filter.frequency.value = filterFrequency;
+      filter.Q.value = filterResonance;
+      delayFilters.push(filter);
+    }
+    
+    // Connect delay chain
+    masterGain.connect(delayDryGain);
+    masterGain.connect(delayInputGain);
+    delayInputGain.connect(delayNode);
+    
+    if (delayFilters.length > 0) {
+      delayNode.connect(delayFilters[0]);
+      for (let i = 0; i < delayFilters.length - 1; i++) {
+        delayFilters[i].connect(delayFilters[i + 1]);
+      }
+      const lastFilter = delayFilters[delayFilters.length - 1];
+      lastFilter.connect(delayFeedbackGain);
+      lastFilter.connect(delayWetGain);
+    } else {
+      delayNode.connect(delayFeedbackGain);
+      delayNode.connect(delayWetGain);
+    }
+    
+    delayFeedbackGain.connect(delayInputGain);
+    
+    // Create reverb
+    const convolver = offlineContext.createConvolver();
+    const impulseLength = sampleRate * 3;
+    const impulse = offlineContext.createBuffer(2, impulseLength, sampleRate);
+    const decayConst = 2.5;
+    
+    for (let channel = 0; channel < 2; channel++) {
+      const channelData = impulse.getChannelData(channel);
+      for (let i = 0; i < impulseLength; i++) {
+        const t = i / sampleRate;
+        const envelope = Math.exp(-t / decayConst);
+        let early = 0;
+        if (i < sampleRate * 0.1) {
+          const delays = [0.01, 0.023, 0.037, 0.052, 0.068, 0.083];
+          for (const d of delays) {
+            if (Math.abs(t - d) < 0.001) {
+              early = (Math.random() * 2 - 1) * 0.5;
+            }
+          }
+        }
+        const noise = (Math.random() * 2 - 1) * envelope * 0.3;
+        channelData[i] = early + noise;
+      }
+    }
+    convolver.buffer = impulse;
+    
+    // Create mix node for delay
+    const delayMixNode = offlineContext.createGain();
+    delayMixNode.gain.value = 1.0;
+    delayDryGain.connect(delayMixNode);
+    delayWetGain.connect(delayMixNode);
+    
+    // Connect reverb
+    const dryGain = offlineContext.createGain();
+    const wetGain = offlineContext.createGain();
+    dryGain.gain.value = 0.7;
+    wetGain.gain.value = 0.3;
+    
+    delayMixNode.connect(dryGain);
+    delayMixNode.connect(convolver);
+    convolver.connect(wetGain);
+    
+    dryGain.connect(offlineContext.destination);
+    wetGain.connect(offlineContext.destination);
+    
+    // Schedule all notes (envelope params already extracted above)
+    const { rate: vibratoRate, depth: vibratoDepth } = this.synthParams.vibrato;
+    const { rate: tremoloRate, depth: tremoloDepth } = this.synthParams.tremolo;
+    
+    for (let i = 0; i < notes.length; i++) {
+      const note = notes[i];
+      const frequency = midiToFreq(note.midiNote);
+      const when = note.startTime;
+      const noteDuration = note.duration;
+      
+      // Create oscillator
+      const oscillator = offlineContext.createOscillator();
+      oscillator.type = 'sine';
+      oscillator.frequency.setValueAtTime(frequency, when);
+      
+      // Create vibrato
+      const vibratoLFO = offlineContext.createOscillator();
+      const vibratoGain = offlineContext.createGain();
+      vibratoLFO.type = 'sine';
+      vibratoLFO.frequency.setValueAtTime(vibratoRate, when);
+      vibratoGain.gain.setValueAtTime(frequency * vibratoDepth, when);
+      vibratoLFO.connect(vibratoGain);
+      vibratoGain.connect(oscillator.frequency);
+      
+      // Create tremolo
+      const tremoloLFO = offlineContext.createOscillator();
+      const tremoloGain = offlineContext.createGain();
+      const tremoloDepthNode = offlineContext.createGain();
+      tremoloLFO.type = 'sine';
+      tremoloLFO.frequency.setValueAtTime(tremoloRate, when);
+      tremoloGain.gain.setValueAtTime(1 - tremoloDepth / 2, when);
+      tremoloDepthNode.gain.setValueAtTime(tremoloDepth / 2, when);
+      tremoloLFO.connect(tremoloDepthNode);
+      
+      // Create envelope gain
+      const envelopeGain = offlineContext.createGain();
+      envelopeGain.gain.setValueAtTime(0, when);
+      
+      // ADSR envelope
+      const peakTime = when + attack;
+      const decayEndTime = peakTime + decayTime;
+      const releaseStartTime = when + noteDuration;
+      const releaseEndTime = releaseStartTime + release;
+      
+      envelopeGain.gain.linearRampToValueAtTime(0.3, peakTime);
+      envelopeGain.gain.linearRampToValueAtTime(0.3 * sustain, decayEndTime);
+      envelopeGain.gain.setValueAtTime(0.3 * sustain, releaseStartTime);
+      envelopeGain.gain.linearRampToValueAtTime(0, releaseEndTime);
+      
+      // Connect chain
+      oscillator.connect(envelopeGain);
+      envelopeGain.connect(tremoloGain);
+      tremoloDepthNode.connect(tremoloGain.gain);
+      tremoloGain.connect(masterGain);
+      
+      // Start and stop oscillators
+      oscillator.start(when);
+      vibratoLFO.start(when);
+      tremoloLFO.start(when);
+      oscillator.stop(releaseEndTime + 0.1);
+      vibratoLFO.stop(releaseEndTime + 0.1);
+      tremoloLFO.stop(releaseEndTime + 0.1);
+      
+      if (onProgress && i % 100 === 0) {
+        onProgress(i / notes.length * 0.5);
+      }
+    }
+    
+    if (onProgress) onProgress(0.5);
+    
+    // Render audio
+    const audioBuffer = await offlineContext.startRendering();
+    
+    if (onProgress) onProgress(0.8);
+    
+    // Trim silence from the end
+    const trimmedBuffer = this.trimSilence(audioBuffer);
+    
+    if (onProgress) onProgress(0.9);
+    
+    // Convert to WAV
+    const wavBlob = this.audioBufferToWav(trimmedBuffer);
+    
+    if (onProgress) onProgress(1.0);
+    
+    return wavBlob;
+  }
+
+  /**
+   * Trim silence from the end of an audio buffer
+   * @param buffer The audio buffer to trim
+   * @param threshold Amplitude threshold below which is considered silence (default: 0.001)
+   * @param minSilenceSeconds Minimum silence to keep at the end (default: 0.5)
+   */
+  private trimSilence(buffer: AudioBuffer, threshold: number = 0.001, minSilenceSeconds: number = 0.5): AudioBuffer {
+    const numChannels = buffer.numberOfChannels;
+    const sampleRate = buffer.sampleRate;
+    const minSilenceSamples = Math.floor(minSilenceSeconds * sampleRate);
+    
+    // Find the last sample above threshold in any channel
+    let lastSoundSample = 0;
+    
+    for (let ch = 0; ch < numChannels; ch++) {
+      const channelData = buffer.getChannelData(ch);
+      for (let i = buffer.length - 1; i >= 0; i--) {
+        if (Math.abs(channelData[i]) > threshold) {
+          if (i > lastSoundSample) {
+            lastSoundSample = i;
+          }
+          break;
+        }
+      }
+    }
+    
+    // Add minimum silence padding and clamp to buffer length
+    const endSample = Math.min(lastSoundSample + minSilenceSamples, buffer.length);
+    
+    // If we're not trimming much, just return the original
+    if (endSample >= buffer.length - sampleRate) {
+      return buffer;
+    }
+    
+    // Create a new trimmed buffer
+    const trimmedBuffer = new AudioContext().createBuffer(numChannels, endSample, sampleRate);
+    
+    for (let ch = 0; ch < numChannels; ch++) {
+      const sourceData = buffer.getChannelData(ch);
+      const destData = trimmedBuffer.getChannelData(ch);
+      for (let i = 0; i < endSample; i++) {
+        destData[i] = sourceData[i];
+      }
+    }
+    
+    return trimmedBuffer;
+  }
+
+  private audioBufferToWav(buffer: AudioBuffer): Blob {
+    const numChannels = buffer.numberOfChannels;
+    const sampleRate = buffer.sampleRate;
+    const format = 1; // PCM
+    const bitsPerSample = 16;
+    
+    const bytesPerSample = bitsPerSample / 8;
+    const blockAlign = numChannels * bytesPerSample;
+    const byteRate = sampleRate * blockAlign;
+    const dataSize = buffer.length * blockAlign;
+    const headerSize = 44;
+    const totalSize = headerSize + dataSize;
+    
+    const arrayBuffer = new ArrayBuffer(totalSize);
+    const view = new DataView(arrayBuffer);
+    
+    // Write WAV header
+    const writeString = (offset: number, str: string) => {
+      for (let i = 0; i < str.length; i++) {
+        view.setUint8(offset + i, str.charCodeAt(i));
+      }
+    };
+    
+    writeString(0, 'RIFF');
+    view.setUint32(4, totalSize - 8, true);
+    writeString(8, 'WAVE');
+    writeString(12, 'fmt ');
+    view.setUint32(16, 16, true); // fmt chunk size
+    view.setUint16(20, format, true);
+    view.setUint16(22, numChannels, true);
+    view.setUint32(24, sampleRate, true);
+    view.setUint32(28, byteRate, true);
+    view.setUint16(32, blockAlign, true);
+    view.setUint16(34, bitsPerSample, true);
+    writeString(36, 'data');
+    view.setUint32(40, dataSize, true);
+    
+    // Interleave and write samples
+    const channels: Float32Array[] = [];
+    for (let i = 0; i < numChannels; i++) {
+      channels.push(buffer.getChannelData(i));
+    }
+    
+    let offset = 44;
+    for (let i = 0; i < buffer.length; i++) {
+      for (let ch = 0; ch < numChannels; ch++) {
+        let sample = channels[ch][i];
+        // Clamp
+        sample = Math.max(-1, Math.min(1, sample));
+        // Convert to 16-bit integer
+        const intSample = sample < 0 ? sample * 0x8000 : sample * 0x7FFF;
+        view.setInt16(offset, intSample, true);
+        offset += 2;
+      }
+    }
+    
+    return new Blob([arrayBuffer], { type: 'audio/wav' });
+  }
+
+  /**
+   * Export to MIDI file
+   * @param numHyperbars Number of hyperbars (8 bars each) to generate
+   */
+  exportToMidi(numHyperbars: number): Blob {
+    const notes = this.generateMusicData(numHyperbars);
+    
+    // Convert notes to MIDI events
+    const ticksPerSecond = (TICKS_PER_BEAT * this.bpm) / 60;
+    
+    const events: Array<{ tick: number; type: 'on' | 'off'; note: number; velocity: number }> = [];
+    
+    for (const note of notes) {
+      const startTick = Math.round(note.startTime * ticksPerSecond);
+      const endTick = Math.round((note.startTime + note.duration) * ticksPerSecond);
+      
+      events.push({ tick: startTick, type: 'on', note: note.midiNote, velocity: 80 });
+      events.push({ tick: endTick, type: 'off', note: note.midiNote, velocity: 0 });
+    }
+    
+    // Sort by tick
+    events.sort((a, b) => a.tick - b.tick || (a.type === 'off' ? -1 : 1));
+    
+    // Build track data
+    const trackData: number[] = [];
+    
+    // Tempo meta event
+    const microsecondsPerBeat = Math.round(60000000 / this.bpm);
+    trackData.push(0x00); // Delta time
+    trackData.push(0xFF, 0x51, 0x03); // Tempo meta event
+    trackData.push((microsecondsPerBeat >> 16) & 0xFF);
+    trackData.push((microsecondsPerBeat >> 8) & 0xFF);
+    trackData.push(microsecondsPerBeat & 0xFF);
+    
+    // Time signature (4/4)
+    trackData.push(0x00);
+    trackData.push(0xFF, 0x58, 0x04);
+    trackData.push(0x04, 0x02, 0x18, 0x08);
+    
+    // Note events
+    let lastTick = 0;
+    for (const event of events) {
+      const deltaTick = event.tick - lastTick;
+      lastTick = event.tick;
+      
+      // Write variable-length delta time
+      this.writeVariableLength(trackData, deltaTick);
+      
+      // Write note event
+      if (event.type === 'on') {
+        trackData.push(0x90); // Note on, channel 0
+        trackData.push(event.note & 0x7F);
+        trackData.push(event.velocity & 0x7F);
+      } else {
+        trackData.push(0x80); // Note off, channel 0
+        trackData.push(event.note & 0x7F);
+        trackData.push(0x00);
+      }
+    }
+    
+    // End of track
+    trackData.push(0x00);
+    trackData.push(0xFF, 0x2F, 0x00);
+    
+    // Build complete MIDI file
+    const midiData: number[] = [];
+    
+    // File header
+    midiData.push(...MIDI_HEADER);
+    midiData.push(0x00, 0x00, 0x00, 0x06); // Header length
+    midiData.push(0x00, 0x00); // Format 0
+    midiData.push(0x00, 0x01); // 1 track
+    midiData.push((TICKS_PER_BEAT >> 8) & 0xFF, TICKS_PER_BEAT & 0xFF);
+    
+    // Track header
+    midiData.push(...MIDI_TRACK_HEADER);
+    const trackLength = trackData.length;
+    midiData.push((trackLength >> 24) & 0xFF);
+    midiData.push((trackLength >> 16) & 0xFF);
+    midiData.push((trackLength >> 8) & 0xFF);
+    midiData.push(trackLength & 0xFF);
+    
+    // Track data
+    midiData.push(...trackData);
+    
+    return new Blob([new Uint8Array(midiData)], { type: 'audio/midi' });
+  }
+
+  private writeVariableLength(data: number[], value: number): void {
+    if (value < 0) value = 0;
+    
+    const bytes: number[] = [];
+    bytes.push(value & 0x7F);
+    value >>= 7;
+    
+    while (value > 0) {
+      bytes.push((value & 0x7F) | 0x80);
+      value >>= 7;
+    }
+    
+    bytes.reverse();
+    data.push(...bytes);
   }
 }

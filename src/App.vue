@@ -518,6 +518,80 @@ onUnmounted(() => {
 });
 
 const noteNames = ['C', 'C♯', 'D', 'D♯', 'E', 'F', 'F♯', 'G', 'G♯', 'A', 'A♯', 'B'];
+
+// Export state
+const isExporting = ref(false);
+const exportProgress = ref(0);
+
+async function exportToWav() {
+  if (!engine.value || isExporting.value) return;
+  
+  const input = prompt('Enter number of hyperbars to generate (1 hyperbar = 8 bars):', '1');
+  if (!input) return;
+  
+  const numHyperbars = parseInt(input, 10);
+  if (isNaN(numHyperbars) || numHyperbars < 1 || numHyperbars > 100) {
+    alert('Please enter a valid number between 1 and 100');
+    return;
+  }
+  
+  isExporting.value = true;
+  exportProgress.value = 0;
+  
+  try {
+    const blob = await engine.value.exportToWav(numHyperbars, (progress) => {
+      exportProgress.value = progress;
+    });
+    
+    // Download the file with timestamp
+    const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `musicbox-${numHyperbars}x8bars-${timestamp}.wav`;
+    a.click();
+    URL.revokeObjectURL(url);
+  } catch (err) {
+    console.error('WAV export failed:', err);
+    alert('Failed to export WAV file');
+  } finally {
+    isExporting.value = false;
+    exportProgress.value = 0;
+  }
+}
+
+function exportToMidi() {
+  if (!engine.value || isExporting.value) return;
+  
+  const input = prompt('Enter number of hyperbars to generate (1 hyperbar = 8 bars):', '1');
+  if (!input) return;
+  
+  const numHyperbars = parseInt(input, 10);
+  if (isNaN(numHyperbars) || numHyperbars < 1 || numHyperbars > 100) {
+    alert('Please enter a valid number between 1 and 100');
+    return;
+  }
+  
+  isExporting.value = true;
+  
+  try {
+    const blob = engine.value.exportToMidi(numHyperbars);
+    
+    // Download the file with timestamp
+    const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `musicbox-${numHyperbars}x8bars-${timestamp}.mid`;
+    a.click();
+    URL.revokeObjectURL(url);
+  } catch (err) {
+    console.error('MIDI export failed:', err);
+    alert('Failed to export MIDI file');
+  } finally {
+    isExporting.value = false;
+  }
+}
 </script>
 
 <template>
@@ -592,6 +666,27 @@ const noteNames = ['C', 'C♯', 'D', 'D♯', 'E', 'F', 'F♯', 'G', 'G♯', 'A',
         <button class="preset-btn export" @click="exportPresets" :disabled="userPresets.length === 0">Export</button>
         <button class="preset-btn import" @click="importPresets">Import</button>
       </div>
+    </div>
+    
+    <!-- Export Bar -->
+    <div class="export-bar">
+      <span class="export-label">Export:</span>
+      <button 
+        class="export-btn wav" 
+        @click="exportToWav" 
+        :disabled="isExporting"
+        title="Export to WAV audio file"
+      >
+        {{ isExporting ? `${Math.round(exportProgress * 100)}%` : '🎵 WAV' }}
+      </button>
+      <button 
+        class="export-btn midi" 
+        @click="exportToMidi" 
+        :disabled="isExporting"
+        title="Export to MIDI file"
+      >
+        🎹 MIDI
+      </button>
     </div>
     
     <!--
