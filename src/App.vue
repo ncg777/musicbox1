@@ -606,7 +606,7 @@ function exportToMidi() {
       >
         {{ isLoading ? '⏳' : isPlaying ? '⏸' : '▶' }}
       </button>
-      <h1>🎵 Music Box</h1>
+      <h1>🎵 musicbox1</h1>
     </header>
     
     <div class="note-indicator">
