@@ -597,16 +597,36 @@ function exportToMidi() {
 <template>
   <div class="app">
     <header class="app-header">
-      <button 
-        class="play-button" 
-        :class="{ playing: isPlaying, loading: isLoading }"
-        @click="handlePlayClick"
-        :disabled="isLoading"
-        :aria-label="isLoading ? 'Loading' : isPlaying ? 'Pause' : 'Play'"
-      >
-        {{ isLoading ? '⏳' : isPlaying ? '⏸' : '▶' }}
-      </button>
-      <h1>🎵 musicbox1</h1>
+      <div class="header-left">
+        <button 
+          class="play-button" 
+          :class="{ playing: isPlaying, loading: isLoading }"
+          @click="handlePlayClick"
+          :disabled="isLoading"
+          :aria-label="isLoading ? 'Loading' : isPlaying ? 'Pause' : 'Play'"
+        >
+          {{ isLoading ? '⏳' : isPlaying ? '⏸' : '▶' }}
+        </button>
+        <h1>🎵 musicbox1</h1>
+      </div>
+      <div class="header-right">
+        <button 
+          class="export-btn wav" 
+          @click="exportToWav" 
+          :disabled="isExporting"
+          title="Export to WAV audio file"
+        >
+          {{ isExporting ? `${Math.round(exportProgress * 100)}%` : '🎵 WAV' }}
+        </button>
+        <button 
+          class="export-btn midi" 
+          @click="exportToMidi" 
+          :disabled="isExporting"
+          title="Export to MIDI file"
+        >
+          🎹 MIDI
+        </button>
+      </div>
     </header>
     
     <div class="note-indicator">
@@ -667,27 +687,7 @@ function exportToMidi() {
         <button class="preset-btn import" @click="importPresets">Import</button>
       </div>
     </div>
-    
-    <!-- Export Bar -->
-    <div class="export-bar">
-      <span class="export-label">Export:</span>
-      <button 
-        class="export-btn wav" 
-        @click="exportToWav" 
-        :disabled="isExporting"
-        title="Export to WAV audio file"
-      >
-        {{ isExporting ? `${Math.round(exportProgress * 100)}%` : '🎵 WAV' }}
-      </button>
-      <button 
-        class="export-btn midi" 
-        @click="exportToMidi" 
-        :disabled="isExporting"
-        title="Export to MIDI file"
-      >
-        🎹 MIDI
-      </button>
-    </div>
+
     
     <!--
     <div class="status" v-if="isPlaying">
