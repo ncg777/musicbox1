@@ -32,6 +32,7 @@ body {
   max-width: 1400px;
   padding: 1.0rem;
   padding-top:0.5em;
+  padding-bottom: 4rem;
   text-align: center;
   margin: 0 auto;
 }
@@ -40,6 +41,7 @@ body {
   #app {
     padding: 1rem;
     padding-top:0.5em;
+    padding-bottom: 4rem;
   }
 }
 
@@ -638,4 +640,30 @@ input[type="range"]::-moz-range-thumb {
     flex: 1;
     min-width: 80px;
   }
+}
+
+.App-footer {
+  position: fixed;
+  left: 50%;
+  bottom: 0.75rem;
+  transform: translateX(-50%);
+  z-index: 1000;
+}
+
+.App-footer a {
+  display: inline-block;
+  padding: 0.45rem 0.75rem;
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.35);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  color: rgba(255, 255, 255, 0.95);
+  font-size: 0.85rem;
+  text-decoration: none;
+  backdrop-filter: blur(4px);
+  transition: background 0.2s ease, border-color 0.2s ease;
+}
+
+.App-footer a:hover {
+  background: rgba(0, 0, 0, 0.5);
+  border-color: rgba(255, 255, 255, 0.35);
 }

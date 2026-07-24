@@ -890,5 +890,15 @@ function exportToMidi() {
       </div>
       
     </div>
+
+    <footer class="App-footer">
+      <a
+        href="https://paypal.me/ncg7777"
+        target="_blank"
+        rel="noreferrer"
+      >
+        ❤️ Support musicbox1
+      </a>
+    </footer>
   </div>
 </template>
